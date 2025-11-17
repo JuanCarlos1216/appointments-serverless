@@ -33,26 +33,48 @@ Fue desarrollado como parte de un reto técnico de Rimac, aplicando buenas prác
 
 ```mermaid
 flowchart TD
+    classDef lambda fill:#fceccf,stroke:#e3a008,stroke-width:2px;
+    classDef db fill:#d1fae5,stroke:#065f46,stroke-width:2px;
+    classDef sns fill:#fee2e2,stroke:#b91c1c,stroke-width:2px;
+    classDef sqs fill:#e0e7ff,stroke:#3730a3,stroke-width:2px;
+    classDef event fill:#f3e8ff,stroke:#7e22ce,stroke-width:2px;
 
-A[API Gateway HTTP API] --> B[Lambda: appointmentHttp]
-B --> C[DynamoDB: pending]
-B --> D[SNS Topic]
+    A[API Gateway HTTP API] --> B[Lambda: appointmentHttp]
+    class B lambda
 
-D --> E[SQS PE Queue]
-D --> F[SQS CL Queue]
+    B --> C[DynamoDB<br/>status: pending]
+    class C db
 
-E --> G[Lambda: appointmentPe]
-F --> H[Lambda: appointmentCl]
+    B --> D[SNS Topic]
+    class D sns
 
-G --> I[(MySQL Schema: mysql_pe)]
-H --> J[(MySQL Schema: mysql_cl)]
+    D --> E[SQS PE Queue<br/>countryISO = PE]
+    class E sqs
 
-G --> K[EventBridge Event]
-H --> K
+    D --> F[SQS CL Queue<br/>countryISO = CL]
+    class F sqs
 
-K --> L[CallbackQueue (SQS)]
-L --> M[Lambda: appointmentCallback]
-M --> N[DynamoDB: completed]
+    E --> G[Lambda: appointmentPe]
+    class G lambda
+    F --> H[Lambda: appointmentCl]
+    class H lambda
+
+    G --> I[(MySQL Schema: mysql_pe)]
+    H --> J[(MySQL Schema: mysql_cl)]
+    class I,J db
+
+    G --> K[EventBridge Event<br/>AppointmentScheduled]
+    H --> K
+    class K event
+
+    K --> L[CallbackQueue (SQS)]
+    class L sqs
+
+    L --> M[Lambda: appointmentCallback]
+    class M lambda
+
+    M --> C2[DynamoDB Update<br/>status: completed]
+    class C2 db
 ```
 
 ---
