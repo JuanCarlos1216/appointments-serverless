@@ -26,29 +26,28 @@ Fue desarrollado como respuesta a un reto técnico de Rimac, aplicando buenas pr
 # 🏗️ 2. Arquitectura Serverless (Diagrama)
 
 ```mermaid
-flowchart TD
+graph TD
+  A["API Gateway HTTP API"] --> B["Lambda appointmentHttp"]
 
-A[API Gateway HTTP API] --> B[Lambda appointmentHttp]
+  B --> C["DynamoDB pending"]
+  B --> D["SNS Topic"]
 
-B --> C[DynamoDB (pending)]
-B --> D[SNS Topic]
+  D --> E["SQS PE"]
+  D --> F["SQS CL"]
 
-D --> E[SQS PE]
-D --> F[SQS CL]
+  E --> G["Lambda appointmentPe"]
+  F --> H["Lambda appointmentCl"]
 
-E --> G[Lambda appointmentPe]
-F --> H[Lambda appointmentCl]
+  G --> I["MySQL schema PE"]
+  H --> J["MySQL schema CL"]
 
-G --> I[(MySQL Schema PE)]
-H --> J[(MySQL Schema CL)]
+  G --> K["EventBridge event"]
+  H --> K
 
-G --> K[EventBridge AppointmentScheduled]
-H --> K
+  K --> L["CallbackQueue SQS"]
+  L --> M["Lambda appointmentCallback"]
 
-K --> L[CallbackQueue SQS]
-L --> M[Lambda appointmentCallback]
-
-M --> C2[DynamoDB (completed)]
+  M --> C2["DynamoDB completed"]
 ```
 
 ---
