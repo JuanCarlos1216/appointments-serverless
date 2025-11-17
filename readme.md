@@ -1,104 +1,92 @@
-🚀 Rimac Appointments – Backend Serverless (Reto Técnico)
+# Rimac Appointments – Backend Serverless (Reto Técnico)
 
-Este proyecto implementa un backend 100% serverless en AWS para la gestión de agendamientos de citas.
-Fue desarrollado como respuesta a un reto técnico de Rimac, aplicando buenas prácticas de arquitectura limpia, desacoplada, event-driven y multi–base de datos.
+Este proyecto implementa un backend **100% serverless** en AWS para la gestión de agendamientos de citas.  
+Fue desarrollado como parte de un reto técnico de Rimac, aplicando buenas prácticas de arquitectura limpia, desacoplada, event-driven y multi–base de datos.
 
-🧩 Arquitectura General
-👉 Flujo principal
+---
 
-POST /appointments
+## 1. Arquitectura General – Flujo Principal
 
-Crea una cita en DynamoDB con estado pending.
+### **POST /appointments**
+- Inserta una cita en DynamoDB con estado `pending`.
+- Publica un evento en SNS con el campo `countryISO`.
+- SNS enruta el evento a la cola correspondiente mediante filtros:
+  - `SqsPe` para **Perú**
+  - `SqsCl` para **Chile**
 
-Publica un evento en SNS con el campo countryISO.
+### **Procesamiento por país**
+- Cada SQS activa una Lambda específica:
+  - **appointmentPe** → inserta en MySQL (`mysql_pe`)
+  - **appointmentCl** → inserta en MySQL (`mysql_cl`)
+- Cada Lambda emite un evento en EventBridge informando que la cita fue procesada.
 
-SNS enruta el evento a la cola correcta mediante filtros:
+### **Callback**
+- EventBridge envía el evento a `CallbackQueue`.
+- La Lambda `appointmentCallback` actualiza la cita a `completed` en DynamoDB.
 
-SqsPe para Perú
+### **GET /appointments/{insuredId}**
+- Devuelve todas las citas del asegurado usando DynamoDB.
 
-SqsCl para Chile
+---
 
-Procesamiento por país
+## 2. Arquitectura Serverless (Diagrama)
 
-Cada SQS dispara una Lambda distinta:
+```mermaid
+flowchart TD
 
-appointmentPe → inserta en MySQL (mysql_pe)
+A[API Gateway HTTP API] --> B[Lambda: appointmentHttp]
+B --> C[DynamoDB: pending]
+B --> D[SNS Topic]
 
-appointmentCl → inserta en MySQL (mysql_cl)
+D --> E[SQS PE Queue]
+D --> F[SQS CL Queue]
 
-Cada Lambda publica un evento en EventBridge indicando que la cita fue procesada.
+E --> G[Lambda: appointmentPe]
+F --> H[Lambda: appointmentCl]
 
-Callback
+G --> I[(MySQL Schema: mysql_pe)]
+H --> J[(MySQL Schema: mysql_cl)]
 
-EventBridge redirige el evento a CallbackQueue.
+G --> K[EventBridge Event]
+H --> K
 
-La Lambda appointmentCallback actualiza la cita a completed en DynamoDB.
+K --> L[CallbackQueue (SQS)]
+L --> M[Lambda: appointmentCallback]
+M --> N[DynamoDB: completed]
+```
 
-GET /appointments/{insuredId}
+---
 
-Retorna todas las citas de un asegurado, leyendo desde DynamoDB.
+## 3. Bases de Datos
 
-🏗️ Arquitectura Serverless
-API Gateway HTTP API
-        │
-        ▼
-Lambda (appointmentHttp)
-        │
-        ├── DynamoDB (pending)
-        └── SNS Topic ─────────────┐
-                                   │
-                    ┌──────────────┴───────────────┐
-                    ▼                              ▼
-              SQS PE Queue                  SQS CL Queue
-                    │                              │
-                    ▼                              ▼
-        Lambda appointmentPe        Lambda appointmentCl
-                    │                              │
-    MySQL (DB: mysql_pe)           MySQL (DB: mysql_cl)
-                    │                              │
-                    └───────────────┬──────────────┘
-                                    ▼
-                           EventBridge Rule
-                                    ▼
-                               CallbackQueue
-                                    ▼
-                       Lambda appointmentCallback
-                                    ▼
-                         DynamoDB (completed)
+Se usa **una sola instancia RDS MySQL**, pero con dos bases internas:
 
-🗄️ Bases de Datos
+| País | Base de datos | Tabla |
+|------|---------------|--------|
+| Perú | `mysql_pe`    | `appointments` |
+| Chile | `mysql_cl`   | `appointments` |
 
-Este proyecto utiliza una sola instancia RDS MySQL, pero con dos bases internas (esquemas), una por país:
+---
 
-País	Base de datos	Tabla
-Perú	mysql_pe	appointments
-Chile	mysql_cl	appointments
+## 4. Tecnologías Utilizadas
 
-Se separan los datos por país sin duplicar infraestructura innecesaria.
+- AWS Lambda (Node.js 20)
+- API Gateway HTTP API
+- DynamoDB (On-Demand)
+- SNS con filtros por atributo
+- SQS por país (PE / CL)
+- EventBridge
+- RDS MySQL multi-schema
+- AWS SSM Parameter Store
+- Serverless Framework + esbuild
+- Node.js + TypeScript
+- Arquitectura Limpia
 
-🧱 Tecnologías Utilizadas
+---
 
-AWS Lambda (Node.js 20)
+## 5. Estructura del Proyecto
 
-API Gateway HTTP API
-
-DynamoDB (On-Demand)
-
-SNS → SQS con filtro por país
-
-EventBridge (Callback)
-
-RDS MySQL (instancia única, multi-schema)
-
-AWS Systems Manager Parameter Store
-
-Serverless Framework (v3) + esbuild
-
-Node.js + TypeScript
-
-Arquitectura Limpia (Domain → Application → Infrastructure → Interface)
-
-📁 Estructura del Proyecto
+```bash
 rimac-appointments/
 ├── src/
 │   ├── domain/
@@ -115,120 +103,103 @@ rimac-appointments/
 │       └── http/
 ├── serverless.yml
 └── README.md
+```
 
-🔐 Parámetros en AWS Systems Manager (SSM)
+---
 
-Para evitar credenciales hardcodeadas y permitir rotación segura, este proyecto utiliza SecureString Parameters en AWS SSM.
+## 6. Parámetros en AWS SSM Parameter Store
 
-Debes crear los siguientes:
+Los parámetros de conexión de las bases MySQL se almacenan como **SecureString**.
 
-🇵🇪 Perú
-Nombre	Ejemplo de Valor
-/rimac/db/pe/host	<RDS_ENDPOINT>
-/rimac/db/pe/user	rimac_user
-/rimac/db/pe/password	******
-/rimac/db/pe/name	mysql_pe
-🇨🇱 Chile
-Nombre	Ejemplo de Valor
-/rimac/db/cl/host	<RDS_ENDPOINT>
-/rimac/db/cl/user	rimac_user
-/rimac/db/cl/password	******
-/rimac/db/cl/name	mysql_cl
-Comandos para crearlos
-# PE
-aws ssm put-parameter --name /rimac/db/pe/host --value "<RDS_ENDPOINT>" --type SecureString --overwrite
-aws ssm put-parameter --name /rimac/db/pe/user --value "rimac_user" --type SecureString --overwrite
-aws ssm put-parameter --name /rimac/db/pe/password --value "<PASSWORD>" --type SecureString --overwrite
+### Parámetros – Perú (PE)
+```
+/rimac/db/pe/host
+/rimac/db/pe/user
+/rimac/db/pe/password
+/rimac/db/pe/name  -> mysql_pe
+```
+
+### Parámetros – Chile (CL)
+```
+/rimac/db/cl/host
+/rimac/db/cl/user
+/rimac/db/cl/password
+/rimac/db/cl/name  -> mysql_cl
+```
+
+### Comandos para crearlos
+```bash
 aws ssm put-parameter --name /rimac/db/pe/name --value "mysql_pe" --type SecureString --overwrite
-
-# CL
-aws ssm put-parameter --name /rimac/db/cl/host --value "<RDS_ENDPOINT>" --type SecureString --overwrite
-aws ssm put-parameter --name /rimac/db/cl/user --value "rimac_user" --type SecureString --overwrite
-aws ssm put-parameter --name /rimac/db/cl/password --value "<PASSWORD>" --type SecureString --overwrite
 aws ssm put-parameter --name /rimac/db/cl/name --value "mysql_cl" --type SecureString --overwrite
+```
 
-🔧 Cómo ejecutar localmente
+---
 
-Este proyecto es serverless puro, no utiliza Express ni servidores locales.
+## 7. Cómo Ejecutar Localmente
 
-Instalar dependencias:
-
+```bash
 npm install
-
-
-Transpilar:
-
 npm run build
-
-
-Ejecutar tests:
-
 npm test
+```
 
-🚀 Deploy
+---
+
+## 8. Deploy
+
+```bash
 npx serverless deploy --stage dev
+```
 
+---
 
-Esto crea automáticamente:
+## 9. Testing Manual
 
-Lambdas
-
-Colas SQS
-
-SNS Topic
-
-Regla EventBridge
-
-API Gateway
-
-Permisos IAM
-
-Variables de entorno desde SSM
-
-🧪 Testing Manual
-Crear cita (PE)
+### Crear cita (PE)
+```json
 POST /appointments
 {
   "insuredId": "PE001",
   "scheduleId": 1,
   "countryISO": "PE"
 }
+```
 
-Crear cita (CL)
+### Crear cita (CL)
+```json
 POST /appointments
 {
   "insuredId": "CL001",
   "scheduleId": 1,
   "countryISO": "CL"
 }
+```
 
-Consultar citas por asegurado
+### Consultar citas
+```
 GET /appointments/PE001
 GET /appointments/CL001
+```
 
-✔️ Buenas prácticas aplicadas
+---
 
-Arquitectura clean y altamente desacoplada
+## 10. Buenas Prácticas Aplicadas
 
-Diseño event-driven
+- Arquitectura Clean / hexagonal
+- Separación de responsabilidades por capa
+- Diseño event-driven
+- SQS como mecanismo de resiliencia
+- RDS multi-schema para aislar países
+- Secrets almacenados en SSM
+- Lambdas pequeñas y orientadas a un único propósito
+- Uso de Node.js + TypeScript + Serverless Framework
 
-Uso de SNS + SQS para resiliencia y backpressure
+---
 
-Uso de EventBridge para callback
+## 11. Mejoras Futuras
 
-Base de datos separada por país
-
-Manejo seguro de credenciales con SSM Parameter Store
-
-DynamoDB On-Demand (bajo costo)
-
-Lambdas pequeñas y de responsabilidad única
-
-
-👤 Autor
-
-Juan Alfaro
-Senior Software Engineer / Data Engineer
-GitHub: https://github.com/tu-usuario
-
-LinkedIn: https://linkedin.com/in/tu-perfil
+- Añadir DLQs por cada SQS
+- Trazabilidad con AWS X-Ray
+- CI/CD con GitHub Actions
+- Autenticación/API-Key
+- Tests de integración con LocalStack
