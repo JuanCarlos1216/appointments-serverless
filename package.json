@@ -1,0 +1,39 @@
+{
+  "name": "rimac-appointments",
+  "version": "1.0.0",
+  "description": "Rimac appointments backend (Lambda + Serverless + TS)",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "serverless package",
+    "deploy": "serverless deploy",
+    "dev": "serverless offline",
+    "test": "jest",
+    "lint": "echo \"(aquí podrías agregar eslint)\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.670.0",
+    "@aws-sdk/client-eventbridge": "^3.670.0",
+    "@aws-sdk/client-sns": "^3.670.0",
+    "@aws-sdk/lib-dynamodb": "^3.670.0",
+    "express": "^5.1.0",
+    "mysql2": "^3.11.3",
+    "swagger-ui-express": "^5.0.1",
+    "yaml": "^2.8.1",
+    "yamljs": "^0.3.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.158",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.7.4",
+    "jest": "^29.7.0",
+    "serverless": "^3.39.0",
+    "serverless-esbuild": "^1.54.0",
+    "ts-jest": "^29.2.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.3"
+  }
+}

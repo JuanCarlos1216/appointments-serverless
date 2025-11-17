@@ -1,0 +1,203 @@
+service: rimac-appointments
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: us-east-1
+  stage: dev
+  environment:
+    APPOINTMENTS_TABLE: Appointments
+    SCHEDULE_TOPIC_ARN: !Ref ScheduleTopic
+    CALLBACK_QUEUE_URL: !Ref CallbackQueue
+     # Config PE
+    DB_PE_HOST: ${ssm:/rimac/db/pe/host}
+    DB_PE_PORT: "3306"
+    DB_PE_USER: ${ssm:/rimac/db/pe/user}
+    DB_PE_PASSWORD: ${ssm:/rimac/db/pe/password}
+    DB_PE_NAME: ${ssm:/rimac/db/pe/name}
+    # Config CL
+    DB_CL_HOST: ${ssm:/rimac/db/cl/host}
+    DB_CL_PORT: "3306"
+    DB_CL_USER: ${ssm:/rimac/db/cl/user}
+    DB_CL_PASSWORD: ${ssm:/rimac/db/cl/password}
+    DB_CL_NAME: ${ssm:/rimac/db/cl/name}
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:Query
+      Resource:
+        - arn:aws:dynamodb:*:*:table/Appointments
+    - Effect: Allow
+      Action:
+        - sns:Publish
+      Resource: !Ref ScheduleTopic
+    - Effect: Allow
+      Action:
+        - sqs:ReceiveMessage
+        - sqs:DeleteMessage
+        - sqs:GetQueueAttributes
+      Resource: "*"
+    - Effect: Allow
+      Action:
+        - events:PutEvents
+      Resource: "*"
+
+plugins:
+  - serverless-esbuild
+
+custom:
+  esbuild:
+    bundle: true
+    minify: false
+    sourcemap: true
+    target: node20
+    platform: node
+    exclude: ['aws-sdk']
+
+functions:
+  appointmentHttp:
+    handler: src/interfaces/lambdas/appointmentHandler.http
+    events:
+      - httpApi:
+          method: POST
+          path: /appointments
+      - httpApi:
+          method: GET
+          path: /appointments/{insuredId}
+
+  appointmentCallback:
+    handler: src/interfaces/lambdas/appointmentHandler.callback
+    events:
+      - sqs:
+          arn: !GetAtt CallbackQueue.Arn
+
+  appointmentPe:
+    handler: src/interfaces/lambdas/appointmentPeHandler.main
+    events:
+      - sqs:
+          arn: !GetAtt SqsPe.Arn
+
+  appointmentCl:
+    handler: src/interfaces/lambdas/appointmentClHandler.main
+    events:
+      - sqs:
+          arn: !GetAtt SqsCl.Arn
+
+
+resources:
+  Resources:
+    AppointmentsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: Appointments
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: insuredId
+            AttributeType: S
+          - AttributeName: appointmentId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: insuredId
+            KeyType: HASH
+          - AttributeName: appointmentId
+            KeyType: RANGE
+
+    ScheduleTopic:
+      Type: AWS::SNS::Topic
+
+    SqsPe:
+      Type: AWS::SQS::Queue
+
+    SqsCl:
+      Type: AWS::SQS::Queue
+
+    ScheduleTopicSubscriptionPE:
+      Type: AWS::SNS::Subscription
+      Properties:
+        TopicArn: !Ref ScheduleTopic
+        Protocol: sqs
+        Endpoint: !GetAtt SqsPe.Arn
+        RawMessageDelivery: "true"
+        FilterPolicy:
+          countryISO:
+            - "PE"
+
+    ScheduleTopicSubscriptionCL:
+      Type: AWS::SNS::Subscription
+      Properties:
+        TopicArn: !Ref ScheduleTopic
+        Protocol: sqs
+        Endpoint: !GetAtt SqsCl.Arn
+        RawMessageDelivery: "true"
+        FilterPolicy:
+          countryISO:
+            - "CL"
+
+    CallbackQueue:
+      Type: AWS::SQS::Queue
+
+    AppointmentEventRule:
+      Type: AWS::Events::Rule
+      Properties:
+        EventPattern:
+          source:
+            - "appointments"
+          detail-type:
+            - "AppointmentScheduled"
+        Targets:
+          - Arn: !GetAtt CallbackQueue.Arn
+            Id: "CallbackQueueTarget"
+
+    CallbackQueuePolicy:
+      Type: AWS::SQS::QueuePolicy
+      Properties:
+        Queues:
+          - !Ref CallbackQueue
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: events.amazonaws.com
+              Action: sqs:SendMessage
+              Resource: !GetAtt CallbackQueue.Arn
+              Condition:
+                ArnEquals:
+                  aws:SourceArn: !GetAtt AppointmentEventRule.Arn
+    
+    SqsPePolicy:
+      Type: AWS::SQS::QueuePolicy
+      Properties:
+        Queues:
+          - !Ref SqsPe
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: sns.amazonaws.com
+              Action: sqs:SendMessage
+              Resource: !GetAtt SqsPe.Arn
+              Condition:
+                ArnEquals:
+                  aws:SourceArn: !Ref ScheduleTopic
+
+    SqsClPolicy:
+      Type: AWS::SQS::QueuePolicy
+      Properties:
+        Queues:
+          - !Ref SqsCl
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: sns.amazonaws.com
+              Action: sqs:SendMessage
+              Resource: !GetAtt SqsCl.Arn
+              Condition:
+                ArnEquals:
+                  aws:SourceArn: !Ref ScheduleTopic

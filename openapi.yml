@@ -1,0 +1,107 @@
+openapi: 3.0.0
+info:
+  title: Rimac Appointments API
+  version: 1.0.0
+  description: API para registrar y consultar agendamientos de citas de Rimac.
+
+tags:
+  - name: Appointments
+    description: Gestión de agendamientos
+
+paths:
+  /appointments:
+    post:
+      tags: [Appointments]
+      summary: Crear agendamiento de cita
+      description: >
+        Crea un nuevo agendamiento para un asegurado. La cita se almacena en DynamoDB con estado `pending`
+        y se procesa de forma asíncrona según el país (PE/CL).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAppointmentRequest'
+      responses:
+        '201':
+          description: Cita creada correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+        '400':
+          description: Request inválido
+        '500':
+          description: Error interno del servidor
+
+  /appointments/{insuredId}:
+    get:
+      tags: [Appointments]
+      summary: Listar agendamientos por asegurado
+      description: Obtiene todas las citas registradas para un asegurado.
+      parameters:
+        - in: path
+          name: insuredId
+          required: true
+          schema:
+            type: string
+          description: Identificador del asegurado
+      responses:
+        '200':
+          description: Lista de citas del asegurado
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Appointment'
+        '404':
+          description: No se encontraron citas para el asegurado
+        '500':
+          description: Error interno del servidor
+
+components:
+  schemas:
+    CreateAppointmentRequest:
+      type: object
+      required: [insuredId, scheduleId, countryISO]
+      properties:
+        insuredId:
+          type: string
+          example: '12345'
+        scheduleId:
+          type: integer
+          format: int64
+          example: 1
+        countryISO:
+          type: string
+          enum: [PE, CL]
+          example: PE
+
+    Appointment:
+      type: object
+      properties:
+        appointmentId:
+          type: string
+          example: '6f6c807c-3e4b-4d3a-b8b5-1c6e1e7c9b0a'
+        insuredId:
+          type: string
+          example: '12345'
+        scheduleId:
+          type: integer
+          format: int64
+          example: 1
+        countryISO:
+          type: string
+          example: PE
+        status:
+          type: string
+          example: pending
+        createdAt:
+          type: string
+          format: date-time
+          example: '2025-11-17T01:53:33.000Z'
+        updatedAt:
+          type: string
+          format: date-time
+          example: '2025-11-17T01:53:33.000Z'
