@@ -21,38 +21,7 @@ Fue desarrollado como respuesta a un reto técnico de Rimac, aplicando buenas pr
 6. EventBridge envía el evento a `CallbackQueue (SQS)`  
 7. La Lambda `appointmentCallback` actualiza la cita en DynamoDB a `completed`.
 
----
-
-# 🏗️ 2. Arquitectura Serverless (Diagrama)
-
-```mermaid
-graph TD
-  A["API Gateway HTTP API"] --> B["Lambda appointmentHttp"]
-
-  B --> C["DynamoDB pending"]
-  B --> D["SNS Topic"]
-
-  D --> E["SQS PE"]
-  D --> F["SQS CL"]
-
-  E --> G["Lambda appointmentPe"]
-  F --> H["Lambda appointmentCl"]
-
-  G --> I["MySQL schema PE"]
-  H --> J["MySQL schema CL"]
-
-  G --> K["EventBridge event"]
-  H --> K
-
-  K --> L["CallbackQueue SQS"]
-  L --> M["Lambda appointmentCallback"]
-
-  M --> C2["DynamoDB completed"]
-```
-
----
-
-# 🗂️ 3. Estructura del Proyecto
+# 🗂️ 2. Estructura del Proyecto
 
 ```
 src/
@@ -83,7 +52,7 @@ src/
 
 ---
 
-# ⚙️ 4. Endpoints
+# ⚙️ 3. Endpoints
 
 ### **POST /appointments**
 Crea una cita e inicia todo el flujo serverless.
@@ -93,7 +62,7 @@ Retorna todas las citas del asegurado leyendo desde DynamoDB.
 
 ---
 
-# ☁️ 5. Infraestructura AWS Utilizada
+# ☁️ 4. Infraestructura AWS Utilizada
 
 | Servicio | Uso |
 |---------|-----|
@@ -108,7 +77,7 @@ Retorna todas las citas del asegurado leyendo desde DynamoDB.
 
 ---
 
-# 🔐 6. Parámetros SSM
+# 🔐 5. Parámetros SSM
 
 Los parámetros se crean manualmente:
 
@@ -126,7 +95,7 @@ Los parámetros se crean manualmente:
 
 ---
 
-# 🧪 7. Tests Unitarios
+# 🧪 6. Tests Unitarios
 
 Los tests se encuentran en:
 
@@ -147,7 +116,7 @@ npm test
 
 ---
 
-# 🚀 8. Despliegue
+# 🚀 7. Despliegue
 
 ```bash
 npx serverless deploy --stage dev
@@ -155,7 +124,7 @@ npx serverless deploy --stage dev
 
 ---
 
-# 📦 9. Tecnologías
+# 📦 8. Tecnologías
 
 - TypeScript  
 - AWS Lambda  
@@ -168,6 +137,7 @@ npx serverless deploy --stage dev
 
 ---
 
-# 🧑‍💻 10. Autor
-
+# 🧑‍💻 9. Autor
+Juan Alfaro
+Senior Software Engineer
 Proyecto desarrollado como solución a un reto técnico, con foco en arquitectura limpia y buenas prácticas serverless.
